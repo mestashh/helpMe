@@ -1,0 +1,112 @@
+@prefix ex:   <http://example.org/film#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Классы
+ex:Film      a owl:Class ; rdfs:label "Film" .
+ex:Rating    a owl:Class ; rdfs:label "Rating" .
+ex:Actor     a owl:Class ; rdfs:label "Actor" .
+ex:Producer  a owl:Class ; rdfs:label "Producer" .
+
+ex:wasFilmedIn a owl:ObjectProperty ;   # Actor → Film
+    rdfs:domain ex:Actor ; 
+    rdfs:range ex:Film ; 
+    rdfs:label "wasFilmedIn" .
+
+ex:wasMarkedWith a owl:ObjectProperty ; # Film → Rating
+    rdfs:domain ex:Film ; 
+    rdfs:range ex:Rating ; 
+    rdfs:label "wasMarkedWith" .
+
+ex:madeBy a owl:ObjectProperty ;        # Film → Producer
+    rdfs:domain ex:Film ; 
+    rdfs:range ex:Producer ; 
+    rdfs:label "madeBy" .
+
+ex:Byk      a ex:Film ; rdfs:label "Byk" ;
+    ex:wasMarkedWith ex:Rating5 ;
+    ex:madeBy ex:Spilberg .
+
+ex:film2    a ex:Film ; rdfs:label "film2" ;
+    ex:wasMarkedWith ex:Rating4 ;
+    ex:madeBy ex:Oganyan .
+
+ex:Petrov   a ex:Actor ; rdfs:label "Petrov" ;
+    ex:wasFilmedIn ex:film2 .
+
+ex:Borisov  a ex:Actor ; rdfs:label "Borisov" ;
+    ex:wasFilmedIn ex:Byk .
+
+ex:Rating5  a ex:Rating ; rdfs:label "5" .
+ex:Rating4  a ex:Rating ; rdfs:label "4" .
+
+ex:Spilberg a ex:Producer ; rdfs:label "Spilberg" .
+ex:Oganyan  a ex:Producer ; rdfs:label "Oganyan" .
+
+from rdflib import Graph
+
+g = Graph()
+g.parse("13.ttl", format="turtle")
+
+query = """
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX : <http://example.org/film#>
+
+SELECT ?film_label ?actor_label ?producer_label ?rating_label
+WHERE {
+    ?film a :Film ;
+          rdfs:label ?film_label ;
+          :hasActor ?actor ;
+          :hasProducer ?producer ;
+          :hasRating ?rating .
+    ?actor rdfs:label ?actor_label .
+    ?producer rdfs:label ?producer_label .
+    ?rating rdfs:label ?rating_label .
+}
+"""
+
+results = g.query(query)
+
+for row in results:
+    print(f"Фильм: {row.film_label}, Актёр: {row.actor_label}, Продюсер: {row.producer_label}, Рейтинг: {row.rating_label}")
+
+---------------
+from SPARQLWrapper import SPARQLWrapper, JSON
+import pandas as pd
+
+url = "https://query.wikidata.org/sparql"
+query = """
+SELECT ?president ?presidentLabel ?start ?end ?partyLabel
+WHERE {
+  ?president wdt:P39 wd:Q11696;
+             p:P39 ?statement.
+  ?statement pq:P580 ?start;
+             pq:P582 ?end;
+             ps:P39 wd:Q11696.
+  OPTIONAL { ?president wdt:P102 ?party. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+ORDER BY ?start
+"""
+
+sparql = SPARQLWrapper(url)
+sparql.setQuery(query)
+sparql.setReturnFormat(JSON)
+
+res = sparql.query().convert()
+
+data = [
+    {
+        "President": item["presidentLabel"]["value"],
+        "Start": item["start"]["value"],
+        "End": item["end"]["value"],
+        "Party": item.get("partyLabel", {}).get("value", "None"),
+    }
+    for item in res["results"]["bindings"]
+]
+
+df = pd.DataFrame(data)
+df_grouped = df.groupby("President").first()
+
+print(df_grouped)
