@@ -1,0 +1,194 @@
+myturtle = '''
+@prefix ex: <http://example.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:Course a rdfs:Class ;
+    rdfs:label "Course" ;
+
+ex:Student a rdfs:Class ;
+    rdfs:label "Student" ;
+
+ex:Teacher a rdfs:Class ;
+    rdfs:label "Teacher" ;
+
+ex:Progress a rdfs:Class ;
+    rdfs:label "Progress" ;
+
+ex:teaches a rdfs:Property ;
+    rdfs:domain ex:Teacher ;
+    rdfs:range ex:Course ;
+    rdfs:label "teaches" ;
+
+ex:enrolledIn a rdfs:Property ;
+    rdfs:domain ex:Student ;
+    rdfs:range ex:Course ;
+    rdfs:label "enrolled in" ;
+
+ex:Course1 a ex:Course ;
+    rdfs:label "Semantic web" .
+
+ex:Course2 a ex:Course ;
+    rdfs:label "AI" .
+
+ex:Student1 a ex:Student ;
+    rdfs:label "Ivan" ;
+    ex:enrolledIn ex:Course1 .
+
+ex:Student2 a ex:Student ;
+    rdfs:label "Michael" ;
+    ex:enrolledIn ex:Course2 .
+
+ex:Teacher1 a ex:Teacher ;
+    rdfs:label "Blohin" ;
+    ex:teaches ex:Course1 .
+'''
+
+from rdflib import Graph, Namespace, RDF, RDFS, Literal
+
+ex = Namespace("http://example.org/#")
+g = Graph()
+g.bind("ex", ex)
+
+g.add((ex.Course, RDF.type, RDFS.Class))
+g.add((ex.Student, RDF.type, RDFS.Class))
+g.add((ex.Teacher, RDF.type, RDFS.Class))
+
+g.add((ex.teaches, RDF.type, RDF.Property))
+g.add((ex.teaches, RDFS.domain, ex.Teacher))
+g.add((ex.teaches, RDFS.range, ex.Course))
+
+g.add((ex.enrolledIn, RDF.type, RDF.Property))
+g.add((ex.enrolledIn, RDFS.domain, ex.Student))
+g.add((ex.enrolledIn, RDFS.range, ex.Course))
+
+g.add((ex.Course1, RDF.type, ex.Course))
+g.add((ex.Course2, RDF.type, ex.Course))
+
+g.add((ex.Student1, RDF.type, ex.Student))
+g.add((ex.Student1, ex.enrolledIn, ex.Course1))
+g.add((ex.Student2, RDF.type, ex.Student))
+g.add((ex.Student2, ex.enrolledIn, ex.Course2))
+
+g.add((ex.Teacher1, RDF.type, ex.Teacher))
+g.add((ex.Teacher1, ex.teaches, ex.Course1))
+g.add((ex.Teacher2, RDF.type, ex.Teacher))
+g.add((ex.Teacher2, ex.teaches, ex.Course2))
+
+data = g.serialize(format='turtle')
+print(data)
+
+g_parsed = Graph()
+g_parsed.parse(data=data, format='turtle')
+
+for S, en, C in g_parsed.triples((None, ex.enrolledIn, None)):
+
+    print(f"Student: {S.split('#')[-1]}, {en.split('#')[-1]}  , Course: {C.split('#')[-1]}")
+
+for T, t, C in g_parsed.triples((None, ex.teaches, None)):
+
+    print(f"Teacher: {T.split('#')[-1]}, {t.split('#')[-1]}  , Course: {C.split('#')[-1]}")
+
+from rdflib import Graph, Literal, Namespace, RDF, RDFS, XSD
+
+g = Graph()
+
+ontology = """
+@prefix ex: <http://example.org/#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:Course a rdfs:Class .
+ex:Student a rdfs:Class .
+ex:Teacher a rdfs:Class .
+ex:Progress a rdfs:Class .
+
+ex:enrolledIn a rdf:Property ; rdfs:domain ex:Student ; rdfs:range ex:Course .
+ex:teaches a rdf:Property ; rdfs:domain ex:Teacher ; rdfs:range ex:Course .
+
+ex:hasProgress a rdf:Property ; rdfs:domain ex:Student ; rdfs:range ex:Progress .
+ex:progressForCourse a rdf:Property ; rdfs:domain ex:Progress ; rdfs:range ex:Course .
+ex:progressPercentage a rdf:Property ; rdfs:domain ex:Progress ; rdfs:range xsd:integer .
+
+ex:Course1 a ex:Course .
+ex:Course2 a ex:Course .
+
+ex:Student1 a ex:Student ;
+    ex:enrolledIn ex:Course1 ;
+    ex:hasProgress ex:Progress1 .
+
+ex:Student2 a ex:Student ;
+    ex:enrolledIn ex:Course2 ;
+    ex:hasProgress ex:Progress2 .
+
+ex:Teacher1 a ex:Teacher ;
+    ex:teaches ex:Course1 .
+
+ex:Teacher2 a ex:Teacher ;
+    ex:teaches ex:Course2 .
+
+ex:Progress1 a ex:Progress ;
+    ex:progressForCourse ex:Course1 ;
+    ex:progressPercentage 80 .
+
+ex:Progress2 a ex:Progress ;
+    ex:progressForCourse ex:Course2 ;
+    ex:progressPercentage 60 .
+
+"""
+g.parse(data=ontology, format="turtle")
+
+print("Триплеты в графе:")
+for subj, pred, obj in g:
+    print(subj, pred, obj)
+
+EX = Namespace("http://example.org/")
+query = """
+PREFIX ex: <http://example.org/>
+SELECT ?student ?course ?progress
+WHERE {
+    ?student a ex:Student .
+    ?student ex:hasProgress ?progressNode .
+    ?progressNode ex:progressForCourse ?course .
+    ?progressNode ex:progressPercentage ?progress .
+}
+"""
+results = g.query(query)
+
+print("\nПрогресс студентов по курсам:")
+for row in results:
+    print(f"Студент: {row.student}, Курс: {row.course}, Прогресс: {row.progress}%")
+
+-----------------
+from SPARQLWrapper import SPARQLWrapper, JSON
+import pandas as pd
+endpoint_url = "https://query.wikidata.org/sparql"
+sparql = SPARQLWrapper(endpoint_url)
+sparql.setReturnFormat(JSON)
+
+query = """
+SELECT ?filmLabel ?year ?actorLabel WHERE {
+  ?film wdt:P31 wd:Q11424;         
+        wdt:P57 wd:Q25191;         
+        wdt:P161 ?actor;           
+        wdt:P577 ?publicationDate. 
+  BIND(YEAR(?publicationDate) AS ?year).
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+ORDER BY ?filmLabel ?year
+"""
+
+sparql.setQuery(query)
+results = sparql.query().convert()
+films_data = []
+for result in results["results"]["bindings"]:
+    film = result["filmLabel"]["value"]
+    year = result["year"]["value"]
+    actor = result["actorLabel"]["value"]
+    films_data.append({"Film": film, "Year": year, "Actor": actor})
+
+df = pd.DataFrame(films_data)
+grouped_df = df.groupby(["Film", "Year"])["Actor"].apply(list).reset_index()
+
+grouped_df
