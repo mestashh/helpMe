@@ -1,0 +1,90 @@
+import rdflib
+
+g = rdflib.Graph()
+
+g.parse(data="""
+@prefix lib: <http://example.org/library#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+lib:Book a rdfs:Class .
+lib:Author a rdfs:Class .
+lib:Genre a rdfs:Class .
+
+lib:Author1 a lib:Author;
+    rdfs:label "Фёдор Достоевский" .
+
+lib:Author2 a lib:Author;
+    rdfs:label "Лев Толстой" .
+
+lib:Genre1 a lib:Genre;
+    rdfs:label "Роман" .
+
+lib:Genre2 a lib:Genre;
+    rdfs:label "Драматургия" .
+
+lib:Book1 a lib:Book;
+    rdfs:label "Преступление и наказание";
+    lib:writtenBy lib:Author1;
+    lib:genre lib:Genre1 .
+
+lib:Book2 a lib:Book;
+    rdfs:label "Война и мир";
+    lib:writtenBy lib:Author2;
+    lib:genre lib:Genre1 .
+
+lib:Book3 a lib:Book;
+    rdfs:label "Анна Каренина";
+    lib:writtenBy lib:Author2;
+    lib:genre lib:Genre2 .
+""", format="turtle")
+
+query = """
+SELECT ?book ?bookLabel ?genreLabel WHERE {
+    ?book a <http://example.org/library#Book> .
+    ?book rdfs:label ?bookLabel .
+    ?book <http://example.org/library#genre> ?genre .
+    ?genre rdfs:label ?genreLabel .
+}
+"""
+
+results = g.query(query)
+
+for row in results:
+    print(f"Книга: {row.bookLabel}, Жанр: {row.genreLabel}")
+--------------
+import pandas as pd
+from SPARQLWrapper import SPARQLWrapper, JSON
+
+sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+sparql.setReturnFormat(JSON)
+
+query = """
+SELECT ?language ?languageLabel ?year ?authorLabel ?version WHERE {
+  ?language wdt:P31 wd:Q9143.         # Q9143 = programming language
+  OPTIONAL { ?language wdt:P571 ?year. }
+  OPTIONAL { ?language wdt:P178 ?author. }
+  OPTIONAL { ?language wdt:P348 ?version. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }
+}
+LIMIT 50
+"""
+
+sparql.setQuery(query)
+results = sparql.query().convert()
+data = []
+for result in results["results"]["bindings"]:
+    data.append({
+        "Language": result.get("languageLabel", {}).get("value"),
+        "Year": result.get("year", {}).get("value"),
+        "Author": result.get("authorLabel", {}).get("value"),
+        "Version": result.get("version", {}).get("value"),
+    })
+
+df = pd.DataFrame(data)
+print(df.head())
+
+if "Language" in df.columns:
+    grouped_df = df.groupby("Language").first().reset_index()
+    print(grouped_df)
+else:
+    print("Столбец 'Language' не найден в DataFrame.")
