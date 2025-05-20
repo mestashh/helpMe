@@ -1,0 +1,119 @@
+from rdflib import Graph, URIRef, Namespace
+
+EX = Namespace("http://example.org/education#")
+RDFS = Namespace("http://www.w3.org/2000/01/rdf-schema#")
+RDF = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+
+g = Graph()
+g.parse(data="""
+@prefix : <http://example.org/education#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:Course a rdfs:Class .
+:Student a rdfs:Class .
+:Teacher a rdfs:Class .
+:Grade a rdfs:Class .
+
+:Course1 a :Course ;
+    rdfs:label "Курс 1" ;
+    :teaching :Teacher1 .
+
+:Course2 a :Course ;
+    rdfs:label "Курс 2" ;
+    :teaching :Teacher2 .
+
+:Teacher1 a :Teacher ;
+    rdfs:label "Учитель 1" .
+
+:Teacher2 a :Teacher ;
+    rdfs:label "Учитель 2" .
+
+:Student1 a :Student ;
+    rdfs:label "Студент 1" ;
+    :grade :Grade1a ;
+    :grade :Grade1b .
+
+:Student2 a :Student ;
+    rdfs:label "Студент 2" ;
+    :grade :Grade2a ;
+    :grade :Grade2b .
+
+:Grade1a a :Grade ;
+    :forStudent :Student1 ;
+    :forCourse :Course1 ;
+    rdfs:value 86 .
+        
+:Grade1b a :Grade ;
+    :forStudent :Student1 ;
+    :forCourse :Course2 ;
+    rdfs:value 70 .
+
+:Grade2a a :Grade ;
+    :forStudent :Student2 ;
+    :forCourse :Course1 ;
+    rdfs:value 95 .
+
+:Grade2b a :Grade ;
+    :forStudent :Student2 ;
+    :forCourse :Course2 ;
+    rdfs:value 88 .
+
+""", format="turtle")
+
+for student in g.subjects(predicate=RDF.type, object=EX.Student):
+    student_name = g.value(subject=student, predicate=RDFS.label)
+    print(f"Студент: {student_name}")
+    
+    for grade in g.objects(subject=student, predicate=EX.grade):
+        grade_value = g.value(subject=grade, predicate=RDFS.value)
+        course = g.value(subject=grade, predicate=EX.forCourse)
+        course_name = g.value(subject=course, predicate=RDFS.label)
+        print(f"  Оценка за {course_name} : {grade_value}")
+-----------
+from SPARQLWrapper import SPARQLWrapper, JSON
+import pandas as pd
+sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+
+sparql_query = """
+SELECT DISTINCT ?countryLabel ?capitalLabel ?coordinates ?headLabel ?population
+WHERE {
+  ?country wdt:P31 wd:Q6256 .
+  FILTER NOT EXISTS {?country wdt:P31 wd:Q3024240}
+  FILTER NOT EXISTS {?country wdt:P31 wd:Q28171280}
+  
+  OPTIONAL { 
+    ?country wdt:P36 ?capital .
+    OPTIONAL { 
+      ?capital wdt:P625 ?coordinates . 
+      OPTIONAL { 
+        ?capital p:P1082 ?populationStatement .
+        ?populationStatement ps:P1082 ?population .
+        OPTIONAL { 
+          ?populationStatement pq:P585 ?date .
+        }
+      }
+      OPTIONAL { 
+        ?capital wdt:P6 ?head .
+      }
+    }
+  }
+  
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],mul,en" }
+}
+ORDER BY DESC(?date)
+"""
+
+sparql.setQuery(sparql_query)
+sparql.setReturnFormat(JSON)
+
+results = sparql.query().convert()
+data = []
+for city in results['results']['bindings']:
+    country_label = city.get('countryLabel', {}).get('value', 'Nan')
+    capital_label = city.get('capitalLabel', {}).get('value', 'Nan')
+    coordinates = city.get('coordinates', {}).get('value', 'Nan')
+    head_label = city.get('headLabel', {}).get('value', 'Nan')
+    population = city.get('population', {}).get('value', 'Nan')
+    data.append([country_label, capital_label, coordinates, head_label, population])
+df = pd.DataFrame(data, columns=results['head']['vars'])
+df
