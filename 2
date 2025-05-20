@@ -1,0 +1,109 @@
+from rdflib import Graph, Namespace, RDF, RDFS
+
+
+g = Graph()
+
+
+turtle_data = """
+@prefix ex: <http://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Определение классов
+ex:Building a rdfs:Class .
+ex:Apartment a rdfs:Class .
+ex:Owner a rdfs:Class .
+
+# Определение свойств
+ex:hasOwner a rdf:Property ;
+    rdfs:domain ex:Building ;
+    rdfs:range ex:Owner .
+
+ex:locatedIn a rdf:Property ;
+    rdfs:domain ex:Apartment ;
+    rdfs:range ex:Building .
+
+ex:constructedIn a rdf:Property ;
+    rdfs:domain ex:Building ;
+    rdfs:range xsd:gYear .
+
+# Примеры зданий
+ex:Building1 a ex:Building ;
+    rdfs:label "Здание 1" ;
+    ex:constructedIn "2000"^^xsd:gYear ;
+    ex:hasOwner ex:Owner1 .
+
+ex:Building2 a ex:Building ;
+    rdfs:label "Здание 2" ;
+    ex:constructedIn "2010"^^xsd:gYear ;
+    ex:hasOwner ex:Owner2 .
+
+# Примеры квартир
+ex:Apartment1 a ex:Apartment ;
+    ex:locatedIn ex:Building1 .
+
+ex:Apartment2 a ex:Apartment ;
+    ex:locatedIn ex:Building2 .
+
+# Примеры владельцев
+ex:Owner1 a ex:Owner ;
+    rdfs:label "Иван Иванов" .
+
+ex:Owner2 a ex:Owner ;
+    rdfs:label "Петр Петров" .
+"""
+
+g.parse(data=turtle_data, format="turtle")
+
+
+ex = Namespace("http://example.org/")
+
+
+for building in g.subjects(RDF.type, ex.Building):
+    name = g.value(building, RDFS.label)
+    year = g.value(building, ex.constructedIn)
+    print(f"Здание: {name}, Год постройки: {year}")
+
+----------
+import pandas as pd
+from SPARQLWrapper import SPARQLWrapper, JSON
+
+sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+sparql.setReturnFormat(JSON)
+
+query = """
+SELECT ?country ?countryLabel ?capitalLabel ?population ?coordinate ?headOfGovernmentLabel WHERE {
+  ?country wdt:P31 wd:Q6256;    
+           wdt:P36 ?capital.
+  ?capital wdt:P31 wd:Q515;
+           wdt:P1082 ?population;
+           wdt:P625 ?coordinate.
+  OPTIONAL { ?capital wdt:P6 ?headOfGovernment. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }
+}
+ORDER BY ?countryLabel
+LIMIT 50
+"""
+
+sparql.setQuery(query)
+results = sparql.query().convert()
+
+data = []
+for result in results["results"]["bindings"]:
+    country = result.get('countryLabel', {}).get('value', result.get('country', {}).get('value', 'Неизвестно'))
+    capital = result.get('capitalLabel', {}).get('value', 'Неизвестно')
+    population = result.get('population', {}).get('value', 'Неизвестно')
+    coordinate = result.get('coordinate', {}).get('value', 'Неизвестно')
+    head_of_government = result.get("headOfGovernmentLabel", {}).get("value", "Неизвестно")
+    data.append({
+        "Страна": country,
+        "Столица": capital,
+        "Население": population,
+        "Координаты": coordinate,
+        "Глава города": head_of_government
+    })
+
+df = pd.DataFrame(data)
+df['Население'] = df['Население'].astype(int)
+print(df)
