@@ -1,0 +1,118 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <http://example.org/university#> .
+
+ex:Faculty a rdfs:Class ;
+    rdfs:label "Faculty"^^xsd:string .
+
+ex:Department a rdfs:Class ;
+    rdfs:subClassOf ex:Faculty ;
+    rdfs:label "Department"^^xsd:string .
+
+ex:Professor a rdfs:Class ;
+    rdfs:label "Professor"^^xsd:string .
+
+ex:Course a rdfs:Class ;
+    rdfs:label "Course"^^xsd:string .
+
+ex:hasDepartment a rdf:Property ;
+    rdfs:domain ex:Faculty ;
+    rdfs:range ex:Department ;
+    rdfs:label "has department"^^xsd:string .
+
+ex:teaches a rdf:Property ;
+    rdfs:domain ex:Professor ;
+    rdfs:range ex:Course ;
+    rdfs:label "teaches"^^xsd:string .
+
+ex:belongsTo a rdf:Property ;
+    rdfs:domain ex:Course ;
+    rdfs:range ex:Department ;
+    rdfs:label "belongs to"^^xsd:string .
+
+ex:ScienceFaculty a ex:Faculty ;
+    rdfs:label "Science Faculty"^^xsd:string ;
+    ex:hasDepartment ex:PhysicsDepartment, ex:ChemistryDepartment .
+
+ex:PhysicsDepartment a ex:Department ;
+    rdfs:label "Physics Department"^^xsd:string .
+
+ex:ChemistryDepartment a ex:Department ;
+    rdfs:label "Chemistry Department"^^xsd:string .
+
+ex:ProfSmith a ex:Professor ;
+    rdfs:label "Феклин Вадим Геннадьевич"^^xsd:string ;
+    ex:teaches ex:QuantumMechanicsCourse .
+
+ex:ProfJones a ex:Professor ;
+    rdfs:label "Кочкаров Расул Ахматович"^^xsd:string ;
+    ex:teaches ex:OrganicChemistryCourse .
+
+ex:QuantumMechanicsCourse a ex:Course ;
+    rdfs:label "semantic technologies"^^xsd:string ;
+    ex:belongsTo ex:PhysicsDepartment .
+
+ex:OrganicChemistryCourse a ex:Course ;
+    rdfs:label "big data processing"^^xsd:string ;
+    ex:belongsTo ex:ChemistryDepartment .
+
+from rdflib import Graph, URIRef, RDF, RDFS
+from rdflib.namespace import Namespace
+import os
+
+g = Graph()
+
+ g.parse("ex", format="turtle")
+
+EX = Namespace("http://example.org/university#")
+for professor, course in g.subject_objects(predicate=EX.teaches):
+    professor_label = g.value(professor, RDFS.label)
+    course_label = g.value(course, RDFS.label)
+    print(f"Преподаватель: {professor_label}, Курс: {course_label}")
+
+----
+from SPARQLWrapper import SPARQLWrapper, JSON
+import pandas as pd
+
+sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+sparql.setQuery("""
+SELECT DISTINCT ?language ?languageLabel ?year ?author ?authorLabel ?maxVersion WHERE {
+  ?language wdt:P31 wd:Q9143.
+  OPTIONAL { ?language wdt:P571 ?inception. }
+  OPTIONAL { ?language wdt:P178 ?author. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+  BIND(YEAR(?inception) AS ?year)
+  {
+    SELECT ?language (MAX(?version) AS ?maxVersion) WHERE {
+      ?language wdt:P31 wd:Q9143.
+      OPTIONAL { ?language wdt:P348 ?version. }
+    } GROUP BY ?language
+  }
+}
+LIMIT 50
+""")
+
+sparql.setReturnFormat(JSON)
+results = sparql.query().convert()
+bindings = results['results']['bindings']
+data = []
+for binding in bindings:
+    language = binding.get('languageLabel', {}).get('value', 'N/A')
+    year = binding.get('year', {}).get('value', 'N/A')
+    author = binding.get('authorLabel', {}).get('value', 'N/A')
+    version = binding.get('maxVersion', {}).get('value', 'N/A')
+    
+    data.append({
+        'Language': language,
+        'Year': year if year != 'N/A' else None,
+        'Author': author if author != 'N/A' else None,
+        'Version': version if version != 'N/A' else None
+    })
+df = pd.DataFrame(data)
+grouped_df = df.groupby('Language').agg({
+    'Year': lambda x: ', '.join([str(y) for y in x.dropna()]),
+    'Author': lambda x: ', '.join(x.dropna()),
+    'Version': lambda x: ', '.join(x.dropna())
+}).reset_index()
+print(grouped_df)
