@@ -9,17 +9,17 @@ ex:Rating    a owl:Class ; rdfs:label "Rating" .
 ex:Actor     a owl:Class ; rdfs:label "Actor" .
 ex:Producer  a owl:Class ; rdfs:label "Producer" .
 
-ex:wasFilmedIn a owl:ObjectProperty ;   # Actor → Film
+ex:wasFilmedIn a owl:ObjectProperty ;   
     rdfs:domain ex:Actor ; 
     rdfs:range ex:Film ; 
     rdfs:label "wasFilmedIn" .
 
-ex:wasMarkedWith a owl:ObjectProperty ; # Film → Rating
+ex:wasMarkedWith a owl:ObjectProperty ; 
     rdfs:domain ex:Film ; 
     rdfs:range ex:Rating ; 
     rdfs:label "wasMarkedWith" .
 
-ex:madeBy a owl:ObjectProperty ;        # Film → Producer
+ex:madeBy a owl:ObjectProperty ;       
     rdfs:domain ex:Film ; 
     rdfs:range ex:Producer ; 
     rdfs:label "madeBy" .
