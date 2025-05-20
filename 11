@@ -1,0 +1,99 @@
+import rdflib
+from rdflib import Graph, URIRef
+import pandas as pd
+import SPARQLWrapper
+data = """
+@prefix ex: <http://example.org/university#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+ex:Faculty a rdfs:Class .
+ex:Department a rdfs:Class .
+ex:Professor a rdfs:Class .
+ex:Course a rdfs:Class .
+
+ex:ComputerScience a ex:Faculty ;
+    rdfs:label "Факультет компьютерных наук" .
+
+ex:Engineering a ex:Faculty ;
+    rdfs:label "Факультет инженерии" .
+
+ex:CSDepartment a ex:Department ;
+    rdfs:label "Кафедра компьютерных наук" ;
+    ex:isPartOf ex:ComputerScience .
+
+ex:EEDepartment a ex:Department ;
+    rdfs:label "Кафедра электротехники" ;
+    ex:isPartOf ex:Engineering .
+
+ex:DrSmith a ex:Professor ;
+    rdfs:label "Доктор Смит" ;
+    ex:teaches ex:CS101 .
+
+ex:DrJohnson a ex:Professor ;
+    rdfs:label "Доктор Джонсон" ;
+    ex:teaches ex:EE101 .
+
+ex:CS101 a ex:Course ;
+    rdfs:label "Введение в программирование" ;
+    ex:taughtBy ex:DrSmith .
+
+ex:EE101 a ex:Course ;
+    rdfs:label "Основы электротехники" ;
+    ex:taughtBy ex:DrJohnson .
+"""
+g = Graph()
+g.parse('C:/Users/Ruslan/Desktop/university.ttl', format='turtle')
+for course in g.subjects(predicate=URIRef("http://example.org/university#taughtBy")):
+    professor = g.value(subject=course, predicate=URIRef("http://example.org/university#taughtBy"))
+    course_label = g.value(course, URIRef("http://www.w3.org/2000/01/rdf-schema#label"))
+    professor_label = g.value(professor, URIRef("http://www.w3.org/2000/01/rdf-schema#label"))
+    print(f"Курс: {course_label}, Преподаватель: {professor_label}")
+------------
+from SPARQLWrapper import SPARQLWrapper, JSON
+import pandas as pd
+
+sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+sparql.setQuery("""
+SELECT ?filmLabel ?actorLabel (YEAR(?date) AS ?year) WHERE {
+  ?film wdt:P272 wd:Q219135.
+  ?film p:P161 ?castStatement.
+  ?castStatement ps:P161 ?actor;
+                 pq:P453 wd:Q2009573.
+  ?film wdt:P577 ?date.
+  SERVICE wikibase:label {
+    bd:serviceParam wikibase:language "ru,en".
+  }
+}
+ORDER BY ?date
+""")
+sparql.setReturnFormat(JSON)
+results = sparql.query().convert()
+
+data = []
+for result in results["results"]["bindings"]:
+    actor = result.get("actorLabel", {}).get("value", "")
+    film = result.get("filmLabel", {}).get("value", "")
+    year = result.get("year", {}).get("value", "")[:4]
+    data.append({
+        "Актёр": actor,
+        "Фильм": film,
+        "Год": year
+    })
+
+df = pd.DataFrame(data)
+
+main_bond_actors = [
+    "Шон Коннери",
+    "Джордж Лэзенби",
+    "Роджер Мур",
+    "Тимоти Далтон",
+    "Пирс Броснан",
+    "Дэниел Крейг"
+]
+df_main = df[df["Актёр"].isin(main_bond_actors)]
+df_unique = df_main.drop_duplicates(subset=["Фильм"])
+
+print(df_unique.to_string(index=False))
+
+
